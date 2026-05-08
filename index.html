@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Funil de Resultados</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0a0a0a;
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+  .progress-bar {
+    position: fixed; top: 0; left: 0;
+    height: 3px; background: #22c55e;
+    transition: width 0.4s ease; z-index: 200;
+  }
+  .slide { display: none; height: 100vh; position: relative; overflow: hidden; }
+  .slide.active { display: flex; }
+
+  /* NAV */
+  .nav {
+    position: fixed; bottom: 28px; right: 36px;
+    display: flex; gap: 10px; align-items: center; z-index: 100;
+  }
+  .nav button {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #fff; width: 40px; height: 40px;
+    border-radius: 50%; cursor: pointer; font-size: 18px;
+    transition: background 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav button:hover { background: rgba(255,255,255,0.15); }
+  .dots { display: flex; gap: 6px; align-items: center; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #333; transition: all 0.3s; cursor: pointer;
+  }
+  .dot.active { background: #22c55e; width: 18px; border-radius: 3px; }
+
+  /* CAPA */
+  .capa {
+    flex-direction: column; justify-content: center;
+    padding: 80px 100px; background: #0a0a0a;
+  }
+  .capa::before {
+    content: ''; position: absolute;
+    top: -200px; right: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(34,197,94,0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .capa .tag { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #22c55e; margin-bottom: 24px; }
+  .capa h1 { font-size: 72px; font-weight: 800; line-height: 1.05; }
+  .capa h1 span { color: #22c55e; }
+  .capa .linha { width: 60px; height: 4px; background: #22c55e; margin: 32px 0; border-radius: 2px; }
+  .capa .jornada { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .capa .jornada span { font-size: 13px; color: #333; letter-spacing: 2px; text-transform: uppercase; }
+  .capa-funil { display: flex; align-items: center; gap: 0; margin-bottom: 24px; }
+  .cf-step {
+    width: 46px; height: 46px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #1e1e1e; background: #111;
+  }
+  .cf-step.ativo { border-color: #22c55e; background: #0f1f0f; }
+  .cf-arrow { color: #2a2a2a; font-size: 14px; margin: 0 4px; }
+  .cf-arrow.ativo { color: #22c55e; }
+
+  /* FUNIL OVERVIEW */
+  .funil-slide {
+    flex-direction: column; align-items: center;
+    justify-content: center; padding: 60px 80px; background: #0a0a0a;
+  }
+  .funil-slide h2 { font-size: 38px; font-weight: 700; margin-bottom: 50px; }
+  .funil-slide h2 span { color: #22c55e; }
+  .funil-visual-svg { display: flex; align-items: center; gap: 0; }
+  .fv-bloco {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+  }
+  .fv-box {
+    border-radius: 10px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 14px 18px; gap: 6px; border: 1px solid #1e1e1e;
+    background: #111; min-width: 110px; transition: all 0.2s;
+  }
+  .fv-box:hover { border-color: #22c55e; transform: translateY(-3px); }
+  .fv-box.dest { border-color: #22c55e; background: #0f1f0f; }
+  .fv-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+  .fv-arrow { color: #22c55e; font-size: 22px; margin: 0 6px; opacity: 0.5; }
+
+  /* ETAPAS */
+  .etapa-slide { flex-direction: row; background: #0a0a0a; }
+
+  .etapa-esq {
+    width: 42%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px; border-right: 1px solid #141414;
+    position: relative; overflow: hidden; background: #070707;
+  }
+  .etapa-esq .e-tag {
+    position: absolute; top: 32px; left: 32px;
+    font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; color: #22c55e;
+  }
+  .etapa-esq .e-badge {
+    position: absolute; bottom: 32px;
+    display: inline-block;
+    background: #0f1f0f; border: 1px solid #22c55e;
+    color: #22c55e; font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 20px;
+  }
+  .etapa-esq .e-numero {
+    position: absolute; bottom: 70px; right: 28px;
+    font-size: 120px; font-weight: 900;
+    color: rgba(34,197,94,0.06); line-height: 1;
+  }
+  .e-ilustracao {
+    width: 260px; height: auto;
+    max-height: 260px; object-fit: contain;
+    filter: drop-shadow(0 0 24px rgba(34,197,94,0.08));
+    margin-bottom: 8px;
+  }
+
+  .etapa-dir {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: center; padding: 50px 55px; gap: 16px;
+  }
+  .etapa-dir h3 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .etapa-dir h3 span { color: #22c55e; }
+
+  .items-list { display: flex; flex-direction: column; gap: 12px; }
+  .item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 18px; background: #0f0f0f;
+    border-radius: 8px; border: 1px solid #1a1a1a;
+  }
+  .item svg { flex-shrink: 0; }
+  .item-text { font-size: 15px; color: #ccc; font-weight: 500; }
+
+  .destaque-box {
+    background: #0f1f0f; border: 1px solid #22c55e;
+    border-radius: 8px; padding: 16px 20px;
+    font-size: 15px; color: #aaa; line-height: 1.6;
+  }
+  .destaque-box strong { color: #22c55e; }
+
+  /* ESCALA */
+  .escala-slide {
+    flex-direction: column; justify-content: center;
+    padding: 60px 100px; background: #0a0a0a;
+    position: relative; overflow: hidden;
+  }
+  .escala-slide::before {
+    content: ''; position: absolute;
+    bottom: -300px; left: -200px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(34,197,94,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .escala-slide .tag { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #22c55e; margin-bottom: 14px; }
+  .escala-slide h2 { font-size: 44px; font-weight: 800; margin-bottom: 36px; }
+  .escala-slide h2 span { color: #22c55e; }
+  .equacao { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; flex-wrap: wrap; }
+  .eq-bloco {
+    background: #111; border: 1px solid #222;
+    border-radius: 10px; padding: 16px 22px;
+    text-align: center; min-width: 120px;
+  }
+  .eq-bloco .eq-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #555; margin-bottom: 8px; }
+  .eq-bloco .eq-valor { font-size: 30px; font-weight: 800; color: #fff; }
+  .eq-op { font-size: 26px; color: #333; font-weight: 300; }
+  .eq-result {
+    width: 100%; border-radius: 12px; overflow: hidden;
+    display: flex; align-items: stretch;
+  }
+  .eq-lado {
+    flex: 1; padding: 22px 32px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .eq-lado.esq { background: #111; border: 1px solid #222; border-right: none; border-radius: 12px 0 0 12px; }
+  .eq-lado.dir { background: #0f1f0f; border: 1px solid #22c55e; border-left: none; border-radius: 0 12px 12px 0; }
+  .eq-seta-meio {
+    display: flex; align-items: center; justify-content: center;
+    background: #0d0d0d; border-top: 1px solid #1a1a1a; border-bottom: 1px solid #1a1a1a;
+    padding: 0 18px; font-size: 28px; color: #22c55e; opacity: 0.5;
+  }
+  .eq-result .r-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #555; margin-bottom: 6px; }
+  .eq-result .r-valor { font-size: 44px; font-weight: 900; color: #fff; }
+  .eq-lado.dir .r-valor { color: #22c55e; }
+  .eq-lado.dir .r-sub { font-size: 13px; color: #4ade80; margin-top: 4px; }
+  .escala-nota { font-size: 13px; color: #333; margin-top: 20px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- ===== SLIDE 1 — CAPA ===== -->
+<div class="slide capa active">
+  <div class="tag">Veritas Digital</div>
+  <h1>Funil de<br><span>Resultados</span></h1>
+  <div class="linha"></div>
+  <div class="capa-funil">
+    <div class="cf-step"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <div class="cf-arrow">→</div>
+    <div class="cf-step"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/></svg></div>
+    <div class="cf-arrow ativo">→</div>
+    <div class="cf-step ativo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg></div>
+    <div class="cf-arrow ativo">→</div>
+    <div class="cf-step ativo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+    <div class="cf-arrow ativo">→</div>
+    <div class="cf-step ativo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
+  </div>
+  <p style="color:#333; font-size:13px; letter-spacing:2px; text-transform:uppercase;">A jornada do anúncio ao fechamento</p>
+</div>
+
+<!-- ===== SLIDE 2 — FUNIL VISUAL ===== -->
+<div class="slide funil-slide">
+  <h2>O caminho <span>completo</span></h2>
+  <div class="funil-visual-svg">
+
+    <div class="fv-bloco">
+      <div class="fv-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <div class="fv-label">Estrutura</div>
+      </div>
+    </div>
+    <div class="fv-arrow">→</div>
+
+    <div class="fv-bloco">
+      <div class="fv-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.5">
+          <path d="M3 11l19-9-9 19-2-8-8-2z"/>
+        </svg>
+        <div class="fv-label">Anúncio</div>
+      </div>
+    </div>
+    <div class="fv-arrow">→</div>
+
+    <div class="fv-bloco">
+      <div class="fv-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        <div class="fv-label">Site / LP</div>
+      </div>
+    </div>
+    <div class="fv-arrow">→</div>
+
+    <div class="fv-bloco">
+      <div class="fv-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.5">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <div class="fv-label">Lead</div>
+      </div>
+    </div>
+    <div class="fv-arrow">→</div>
+
+    <div class="fv-bloco">
+      <div class="fv-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.5">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+        <div class="fv-label">Atendimento</div>
+      </div>
+    </div>
+    <div class="fv-arrow">→</div>
+
+    <div class="fv-bloco">
+      <div class="fv-box">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="1.5">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <div class="fv-label">Fechamento</div>
+      </div>
+    </div>
+    <div class="fv-arrow">→</div>
+
+    <div class="fv-bloco">
+      <div class="fv-box dest">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="1.5">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+        </svg>
+        <div class="fv-label" style="color:#22c55e;">Escala</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== SLIDE 3 — ARRUMANDO A CASA ===== -->
+<div class="slide etapa-slide">
+  <div class="etapa-esq">
+    <div class="e-tag">Antes de começar</div>
+    <img src="img/estrutura.svg" class="e-ilustracao" alt="Estrutura">
+    <div class="e-badge">Estrutura e configuração</div>
+    <div class="e-numero">00</div>
+  </div>
+  <div class="etapa-dir">
+    <h3>Arrumando<br><span>a Casa</span></h3>
+    <div class="items-list">
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+        <div class="item-text"><strong>Pixel instalado</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <div class="item-text"><strong>Landing page pronta</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <div class="item-text"><strong>Formulário configurado</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        <div class="item-text"><strong>Contas e campanhas</strong></div>
+      </div>
+    </div>
+    <div class="destaque-box">
+      <strong>Garantir que está tudo funcionando antes de começar a investir.</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 4 — ANÚNCIO ===== -->
+<div class="slide etapa-slide">
+  <div class="etapa-esq">
+    <div class="e-tag">Etapa 01</div>
+    <img src="img/anuncio.svg" class="e-ilustracao" alt="Anúncio">
+    <div class="e-badge">Comprando informação</div>
+    <div class="e-numero">01</div>
+  </div>
+  <div class="etapa-dir">
+    <h3><span>Anúncio</span></h3>
+    <div class="items-list">
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <div class="item-text"><strong>Custo por clique</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <div class="item-text"><strong>Taxa de atenção</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <div class="item-text"><strong>Público e criativo</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 5 — SITE / LP ===== -->
+<div class="slide etapa-slide">
+  <div class="etapa-esq">
+    <div class="e-tag">Etapa 02</div>
+    <img src="img/site.svg" class="e-ilustracao" alt="Site LP">
+    <div class="e-badge">Convertendo visitantes</div>
+    <div class="e-numero">02</div>
+  </div>
+  <div class="etapa-dir">
+    <h3>Site / <span>Landing Page</span></h3>
+    <div class="items-list">
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <div class="item-text"><strong>Custo por visita</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="item-text"><strong>Taxa de ação</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 6 — LEAD ===== -->
+<div class="slide etapa-slide">
+  <div class="etapa-esq">
+    <div class="e-tag">Etapa 03</div>
+    <img src="img/lead.svg" class="e-ilustracao" alt="Lead">
+    <div class="e-badge">Pessoa interessada</div>
+    <div class="e-numero">03</div>
+  </div>
+  <div class="etapa-dir">
+    <h3><span>Lead</span></h3>
+    <div class="items-list">
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <div class="item-text"><strong>Custo por lead (CPL)</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <div class="item-text"><strong>Volume importa</strong></div>
+      </div>
+    </div>
+    <div class="destaque-box">
+      Com volume, a gente tem <strong>estatística real</strong> pra tomar decisão.
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 7 — ATENDIMENTO ===== -->
+<div class="slide etapa-slide">
+  <div class="etapa-esq">
+    <div class="e-tag">Etapa 04</div>
+    <img src="img/atendimento.svg" class="e-ilustracao" alt="Atendimento">
+    <div class="e-badge">Time alinhado</div>
+    <div class="e-numero">04</div>
+  </div>
+  <div class="etapa-dir">
+    <h3><span>Atendimento</span></h3>
+    <div class="items-list">
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <div class="item-text"><strong>Troca de informação</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="item-text"><strong>Decisões estratégicas</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        <div class="item-text"><strong>Dicas e treinamento</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 8 — FECHAMENTO ===== -->
+<div class="slide etapa-slide">
+  <div class="etapa-esq">
+    <div class="e-tag">Etapa 05</div>
+    <img src="img/fechamento.svg" class="e-ilustracao" alt="Fechamento">
+    <div class="e-badge">A pergunta principal</div>
+    <div class="e-numero">05</div>
+  </div>
+  <div class="etapa-dir">
+    <h3><span>Fechamento</span></h3>
+    <div class="items-list">
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div class="item-text"><strong>Agendamentos</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <div class="item-text"><strong>Fechamentos</strong></div>
+      </div>
+      <div class="item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        <div class="item-text"><strong>Taxa de conversão</strong></div>
+      </div>
+    </div>
+    <div class="destaque-box">
+      Esse número abre a porta pra <strong>escala com previsibilidade.</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SLIDE 9 — ESCALA ===== -->
+<div class="slide escala-slide">
+  <div class="tag">A partir daqui</div>
+  <h2>Agora a gente <span>pensa em escala</span></h2>
+  <div class="equacao">
+    <div class="eq-bloco">
+      <div class="eq-label">Custo por lead</div>
+      <div class="eq-valor">R$10</div>
+    </div>
+    <div class="eq-op">×</div>
+    <div class="eq-bloco">
+      <div class="eq-label">Leads necessários</div>
+      <div class="eq-valor">100</div>
+    </div>
+    <div class="eq-op" style="color:#555;">→</div>
+    <div class="eq-bloco">
+      <div class="eq-label">Conversão</div>
+      <div class="eq-valor" style="font-size:26px;">10%</div>
+    </div>
+    <div class="eq-op">→</div>
+    <div class="eq-bloco">
+      <div class="eq-label">Fechamentos</div>
+      <div class="eq-valor">10</div>
+    </div>
+  </div>
+  <div class="eq-result">
+    <div class="eq-lado esq">
+      <div class="r-label">Investimento</div>
+      <div class="r-valor">R$ 1.000</div>
+    </div>
+    <div class="eq-seta-meio">→</div>
+    <div class="eq-lado dir">
+      <div class="r-label">Faturamento</div>
+      <div class="r-valor">R$ 3.000</div>
+      <div class="r-sub">3× de retorno · ticket médio R$ 300</div>
+    </div>
+  </div>
+  <p class="escala-nota">* Números ilustrativos. Com os dados reais de vocês, a gente faz essa projeção com os valores da operação.</p>
+</div>
+
+<!-- NAVEGAÇÃO -->
+<div class="nav">
+  <button onclick="anterior()">&#8592;</button>
+  <div class="dots" id="dots"></div>
+  <button onclick="proximo()">&#8594;</button>
+</div>
+
+<script>
+  let atual = 0;
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  const dotsEl = document.getElementById('dots');
+  const bar = document.getElementById('progressBar');
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => ir(i);
+    dotsEl.appendChild(d);
+  });
+
+  function mostrar(n) {
+    slides.forEach(s => s.classList.remove('active'));
+    slides[n].classList.add('active');
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === n));
+    bar.style.width = ((n + 1) / total * 100) + '%';
+  }
+  function ir(n) { atual = n; mostrar(atual); }
+  function proximo() { if (atual < total - 1) { atual++; mostrar(atual); } }
+  function anterior() { if (atual > 0) { atual--; mostrar(atual); } }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') proximo();
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') anterior();
+    if (e.key === 'f' || e.key === 'F11') document.documentElement.requestFullscreen?.();
+  });
+</script>
+
+</body>
+</html>
